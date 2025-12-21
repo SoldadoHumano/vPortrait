@@ -39,16 +39,17 @@ public class vPortrait extends JavaPlugin {
         long startTime = System.currentTimeMillis();
         instance = this;
 
-        getLogger().info("Initializing Plugin...");
+        getLogger().info("Initializing Plugin...\n\n");
+        getLogger().info("=================================");
         getLogger().info("Developer: vitor1227_op (Discord)");
         getLogger().info("Developer: SoldadoHumano (GitHub)");
         getLogger().info("GitHub: https://github.com/SoldadoHumano");
         getLogger().info("Project GitHub Page: https://github.com/SoldadoHumano/vPortrait");
         String version = this.getDescription().getVersion();
         getLogger().info("Version: " + version);
-
         getLogger().info("Java: " + System.getProperty("java.version"));
         getLogger().info("OS: " + System.getProperty("os.name") + " (" + System.getProperty("os.arch") + ")");
+        getLogger().info("=================================\n\n");
 
         if (!getDataFolder().exists() && !getDataFolder().mkdirs()) {
             log(Level.SEVERE, "Could not create data folder!");
