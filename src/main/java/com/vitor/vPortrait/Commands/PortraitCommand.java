@@ -66,6 +66,10 @@ public class PortraitCommand implements CommandExecutor {
             }
 
             case "upload" -> {
+                if (!player.hasPermission("vportrait.use")) {
+                    sendNoPermission(player);
+                    return true;
+                }
                 if (args.length < 2) {
                     player.sendMessage(prefix.append(Component.text("Usage: /vportrait upload <url>", NamedTextColor.RED)));
                     return true;
@@ -105,7 +109,7 @@ public class PortraitCommand implements CommandExecutor {
             }
 
             case "sync" -> {
-                if (!player.hasPermission("vportrait.use")) {
+                if (!player.hasPermission("vportrait.sync")) {
                     sendNoPermission(player);
                     return true;
                 }

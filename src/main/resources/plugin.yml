@@ -15,7 +15,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 name: vPortrait
-version: '1.0'
+version: '1.0.1'
 main: com.vitor.vPortrait.vPortrait
 api-version: '1.21'
 prefix: vPortrait
@@ -28,6 +28,9 @@ permissions:
     default: op
   vportrait.admin:
     description: Allows removing portraits and reloading.
+    default: op
+  vportrait.sync:
+    description: Allows force sync images for yourself
     default: op
 commands:
   vportrait:
