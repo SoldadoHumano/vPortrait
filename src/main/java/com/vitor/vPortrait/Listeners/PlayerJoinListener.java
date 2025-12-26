@@ -70,48 +70,79 @@ public class PlayerJoinListener implements Listener {
         ChannelDuplexHandler handler = new ChannelDuplexHandler() {
             @Override
             public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-                // Intercept entity spawn packets
-                if (msg instanceof ClientboundAddEntityPacket packet) {
-                    int entityId = packet.getId();
+                try {
+                    // Intercept the packet that notifies the client about a new entity spawn
+                    if (msg instanceof ClientboundAddEntityPacket packet) {
+                        int entityId = packet.getId();
 
-                    Bukkit.getScheduler().runTask(plugin, () -> {
-                        // Efficient entity lookup for the specific player's world
-                        Entity entity = Bukkit.getEntity(player.getWorld().getUID().getLeastSignificantBits() == 0 ? null : null); // Placeholder logic
-
-                        // Refined lookup: Using player.getWorld().getEntities() is safer than all worlds
-                        entity = player.getWorld().getEntities().stream()
-                                .filter(e -> e.getEntityId() == entityId)
-                                .findFirst()
-                                .orElse(null);
-
-                        if (entity instanceof ItemFrame frame) {
-                            ItemStack item = frame.getItem();
-                            if (item.getType().toString().contains("MAP") && item.getItemMeta() instanceof MapMeta meta) {
-                                if (meta.hasMapView() && meta.getMapView() != null) {
-                                    // Force map data sent to client to prevent "empty map" flickering
-                                    player.sendMap(meta.getMapView());
-
-                                    plugin.log(Level.FINE, String.format(
-                                            "Forced map update for %s (Entity ID: %d)",
-                                            player.getName(), entityId
-                                    ));
+                        // Sync back to the main server thread to access the Bukkit API safely
+                        Bukkit.getScheduler().runTask(plugin, () -> {
+                            try {
+                                // Security check: ensure the player hasn't disconnected and the world is still loaded
+                                if (!player.isOnline() || player.getWorld() == null) {
+                                    return;
                                 }
+
+                                // Retrieve the entity from the player's current world using the ID from the packet
+                                // We use a stream for a clean search within the world's entity list
+                                Entity entity = player.getWorld().getEntities().stream()
+                                        .filter(e -> e.getEntityId() == entityId)
+                                        .findFirst()
+                                        .orElse(null);
+
+                                // Verify if the spawned entity is an ItemFrame (or GlowItemFrame)
+                                if (entity instanceof ItemFrame frame) {
+                                    ItemStack item = frame.getItem();
+
+                                    // verify if the item is a map and contains valid metadata
+                                    if (item != null && item.getType().toString().contains("MAP")
+                                            && item.getItemMeta() instanceof MapMeta meta) {
+
+                                        if (meta.hasMapView() && meta.getMapView() != null) {
+                                            // Force send the map data to the client immediately
+                                            player.sendMap(meta.getMapView());
+
+                                            plugin.log(Level.FINE, String.format(
+                                                    "Successfully forced map update for %s (Entity ID: %d)",
+                                                    player.getName(), entityId
+                                            ));
+                                        }
+                                    }
+                                }
+                            } catch (Exception e) {
+                                // Specific catch for the scheduled task logic to prevent main thread issues
+                                plugin.log(Level.SEVERE, "An error occurred during scheduled portrait processing for "
+                                        + player.getName() + ": " + e.getMessage());
                             }
-                        }
-                    });
+                        });
+                    }
+                } catch (Exception e) {
+                    // Outer catch to protect the Netty pipeline from unexpected failures
+                    plugin.log(Level.SEVERE, "Critical failure in vPortrait Netty Packet Handler for "
+                            + player.getName() + ": " + e.getMessage());
+                    e.printStackTrace();
                 }
+
+                // Always call the super method to ensure the packet flow is never interrupted
                 super.write(ctx, msg, promise);
             }
         };
 
         try {
-            Channel channel = ((CraftPlayer) player).getHandle().connection.connection.channel;
-            if (channel.pipeline().get(HANDLER_NAME) == null) {
-                channel.pipeline().addBefore("packet_handler", HANDLER_NAME, handler);
-                plugin.log(Level.FINE, "Netty pipeline injected successfully for " + player.getName());
+            // Safe cast to CraftPlayer to access the underlying NMS connection and Netty channel
+            if (player instanceof CraftPlayer craftPlayer) {
+                Channel channel = craftPlayer.getHandle().connection.connection.channel;
+
+                // Inject the handler into the pipeline if it isn't already there
+                if (channel != null && channel.pipeline().get(HANDLER_NAME) == null) {
+                    // We add it before the default 'packet_handler' to intercept outbound packets
+                    channel.pipeline().addBefore("packet_handler", HANDLER_NAME, handler);
+                    plugin.log(Level.FINE, "Netty pipeline successfully injected for " + player.getName());
+                }
             }
         } catch (Exception e) {
-            plugin.log(Level.SEVERE, "Failed to inject Netty for " + player.getName() + ": " + e.getMessage());
+            // Log injection failures; this usually happens if the connection is closed during join
+            plugin.log(Level.SEVERE, "Failed to inject Netty pipeline for " + player.getName() + ": " + e.getMessage());
         }
     }
 
