@@ -20,7 +20,7 @@ package com.vitor.vPortrait.Listeners;
 
 import com.vitor.vPortrait.vPortrait;
 import org.bukkit.entity.Entity;
-import org.bukkit.entity.GlowItemFrame;
+import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -53,12 +53,10 @@ public class FrameProtectionListener implements Listener {
         frame.setMetadata(PORTRAIT_METADATA, new FixedMetadataValue(plugin, true));
         frame.setPersistent(true);
 
-        if (frame instanceof GlowItemFrame glowFrame) {
-            glowFrame.setFixed(true);          // Prevents rotation and item removal
-            glowFrame.setInvulnerable(true);   // Prevents damage
-            glowFrame.setSilent(true);         // No sound effects
-            glowFrame.setVisible(true);        // Keeps frame visibility
-            glowFrame.setPersistent(true);     // Ensures it survives restarts
+        if (frame instanceof ItemFrame itemFrame) {
+            itemFrame.setFixed(true);
+            itemFrame.setInvulnerable(true);
+            itemFrame.setSilent(true);
         }
     }
 
@@ -71,10 +69,10 @@ public class FrameProtectionListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onFrameInteract(PlayerInteractEntityEvent event) {
-        if (event.getRightClicked() instanceof GlowItemFrame frame && isPortraitFrame(frame)) {
+        if (event.getRightClicked() instanceof ItemFrame frame && isPortraitFrame(frame)) {
             event.setCancelled(true);
 
-            plugin.log(Level.INFO, String.format(
+            plugin.log(Level.FINE, String.format(
                     "Protection: %s tried to interact with a portrait frame at %s",
                     event.getPlayer().getName(),
                     frame.getLocation().toVector().toString()
@@ -84,37 +82,27 @@ public class FrameProtectionListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onFrameDamage(EntityDamageByEntityEvent event) {
-        if (event.getEntity() instanceof GlowItemFrame frame && isPortraitFrame(frame)) {
+        if (event.getEntity() instanceof ItemFrame frame && isPortraitFrame(frame)) {
             event.setCancelled(true);
-
-            if (event.getDamager() instanceof Player player) {
-                plugin.log(Level.INFO, String.format(
-                        "Protection: %s tried to damage a portrait frame at %s",
-                        player.getName(),
-                        frame.getLocation().toVector().toString()
-                ));
-            }
+            // No logging needed for damage attempts to reduce console spam
         }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onHangingBreak(HangingBreakEvent event) {
-        if (event.getEntity() instanceof GlowItemFrame frame && isPortraitFrame(frame)) {
+        if (event.getEntity() instanceof ItemFrame frame && isPortraitFrame(frame)) {
             event.setCancelled(true);
 
             if (event instanceof HangingBreakByEntityEvent breakEvent && breakEvent.getRemover() instanceof Player player) {
-                plugin.log(Level.INFO, String.format(
-                        "Protection: %s tried to break a portrait frame at %s",
-                        player.getName(),
-                        frame.getLocation().toVector().toString()
-                ));
+                // Only log if it's a player trying to break it
+                plugin.log(Level.INFO, "Player " + player.getName() + " attempted to break a locked portrait.");
             }
         }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onItemFrameItemManipulation(HangingPlaceEvent event) {
-        if (event.getEntity() instanceof GlowItemFrame frame && isPortraitFrame(frame)) {
+        if (event.getEntity() instanceof ItemFrame frame && isPortraitFrame(frame)) {
             event.setCancelled(true);
         }
     }

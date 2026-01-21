@@ -15,7 +15,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 name: vPortrait
-version: '1.0.2'
+version: '1.1.0'
 main: com.vitor.vPortrait.vPortrait
 api-version: '1.21'
 prefix: vPortrait
@@ -36,3 +36,6 @@ commands:
   vportrait:
     description: Main command for vPortrait
     usage: /vportrait <upload|remove|tool|reload> [args]
+    aliases:
+      - vp
+      - portrait

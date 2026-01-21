@@ -1,10 +1,21 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath "org.ow2.asm:asm:9.6"
+        classpath "org.ow2.asm:asm-commons:9.6"
+    }
+}
+
 plugins {
     id 'java'
     id 'io.papermc.paperweight.userdev' version '1.7.1'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 group = 'com.vitor'
-version = '1.0.2'
+version = '1.1.0'
 
 repositories {
     mavenCentral()
@@ -12,18 +23,21 @@ repositories {
         name = "papermc-repo"
         url = "https://repo.papermc.io/repository/maven-public/"
     }
-    maven {
-        name = "sonatype"
-        url = "https://oss.sonatype.org/content/groups/public/"
-    }
 }
 
 dependencies {
     paperweight.paperDevBundle("1.21.3-R0.1-SNAPSHOT")
     implementation 'com.google.code.gson:gson:2.10.1'
+    implementation("org.bstats:bstats-bukkit:3.1.0")
 }
 
+tasks.named("shadowJar", com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
+    archiveClassifier.set('')
+    configurations = [project.configurations.runtimeClasspath]
+    relocate 'org.bstats', 'com.vitor.vPortrait.bstats'
+}
 
+assemble.dependsOn shadowJar
 
 def targetJavaVersion = 21
 java {
@@ -37,7 +51,6 @@ java {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-
     if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {
         options.release.set(targetJavaVersion)
     }
@@ -51,8 +64,3 @@ processResources {
         expand props
     }
 }
-
-tasks.jar {
-    archiveBaseName.set("vPortrait")
-}
-

@@ -24,6 +24,8 @@ import com.vitor.vPortrait.Listeners.PlayerJoinListener;
 import com.vitor.vPortrait.Listeners.SelectionListener;
 import com.vitor.vPortrait.Manager.PortraitManager;
 import com.vitor.vPortrait.Manager.SelectionManager;
+import com.vitor.vPortrait.Services.MetricsService;
+import com.vitor.vPortrait.Services.PortraitCleanupService;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -59,6 +61,9 @@ public class vPortrait extends JavaPlugin {
         this.selectionManager = new SelectionManager();
         this.portraitManager = new PortraitManager(this);
 
+        MetricsService metricsService = new MetricsService(this);
+        metricsService.setupMetrics();
+
         try {
             getCommand("vportrait").setExecutor(new PortraitCommand(this));
             getServer().getPluginManager().registerEvents(new SelectionListener(this), this);
@@ -71,10 +76,15 @@ public class vPortrait extends JavaPlugin {
             e.printStackTrace();
         }
 
-
-
         // Delay loading to ensure worlds are fully initialized
+        // This is where the magic happens: we clean BEFORE we load.
         Bukkit.getScheduler().runTaskLater(this, () -> {
+            // Step 1: Absolute Cleanup
+            log(Level.INFO, "Executing startup cleanup sequence...");
+            PortraitCleanupService cleanupService = new PortraitCleanupService(this);
+            cleanupService.cleanupOldPortraits();
+
+            // Step 2: Load and Respawn
             log(Level.INFO, "Loading portraits...");
             this.portraitManager.loadPortraits();
 
