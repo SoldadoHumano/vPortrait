@@ -77,7 +77,6 @@ public class vPortrait extends JavaPlugin {
         }
 
         // Delay loading to ensure worlds are fully initialized
-        // This is where the magic happens: we clean BEFORE we load.
         Bukkit.getScheduler().runTaskLater(this, () -> {
             // Step 1: Absolute Cleanup
             log(Level.INFO, "Executing startup cleanup sequence...");
