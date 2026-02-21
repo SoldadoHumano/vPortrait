@@ -42,6 +42,7 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.URL;
 import java.util.*;
@@ -55,6 +56,10 @@ public class PortraitManager {
     private final File dataFile;
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private final Map<Integer, ImageMapRenderer> rendererCache = new HashMap<>();
+    private static final int CONNECT_TIMEOUT = 5000;
+    private static final int READ_TIMEOUT = 5000;
+    private static final int MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5 MB
+
 
     public PortraitManager(vPortrait plugin) {
         this.plugin = plugin;
@@ -346,23 +351,81 @@ public class PortraitManager {
      * @throws IOException If a network error occurs or the stream is not a valid image.
      */
     private BufferedImage downloadImage(String urlString) throws IOException {
-        // Modern Java 20+ approach: URI handles validation before conversion to URL
-        URL url = URI.create(urlString).toURL();
+        URI uri = URI.create(urlString);
+        if (!"https".equalsIgnoreCase(uri.getScheme())) {
+            throw new IOException("Only HTTPS URLs are allowed");
+        }
 
+        String host = uri.getHost();
+        if (host == null) {
+            throw new IOException("Invalid URL: missing host.");
+        }
+
+        InetAddress address = InetAddress.getByName(host);
+        if (isPrivateAddress(address)) {
+            throw new IOException("Private or local address are not allowed.");
+        }
+
+        URL url = uri.toURL();
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestProperty("User-Agent", "Mozilla/5.0");
 
-        // Security: Preventing the thread from hanging indefinitely (SSRF/DoS protection)
-        conn.setConnectTimeout(5000); // 5 seconds to establish connection
-        conn.setReadTimeout(5000);    // 5 seconds to read data
+        conn.setInstanceFollowRedirects(false);
+        conn.setRequestProperty("User-Agent", "vPortrait/1.2.0");
+        conn.setConnectTimeout(CONNECT_TIMEOUT);
+        conn.setReadTimeout(READ_TIMEOUT);
+
+        int responseCode = conn.getResponseCode();
+        if (responseCode != HttpURLConnection.HTTP_OK) {
+            throw new IOException("Failed to download image. HTTP Code: " + responseCode);
+        }
+
+        int contentLength = conn.getContentLength();
+        if (contentLength < 0 || contentLength > MAX_IMAGE_SIZE) {
+            throw new IOException("Image too large or invalid size.");
+        }
+
+        String contentType = conn.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new IOException("URL does not point to a valid image.");
+        }
+
+        InetAddress connectAddress = InetAddress.getByName(conn.getURL().getHost());
+        if (isPrivateAddress(connectAddress)) {
+            throw new IOException("Redirected to private address. Blocked.");
+        }
 
         try (InputStream in = conn.getInputStream()) {
-            BufferedImage img = ImageIO.read(in);
+            InputStream limitedStream = new BufferedInputStream(in) {
+                private int totalRead = 0;
+
+                @Override
+                public synchronized int read(byte[] b, int off, int len) throws IOException {
+                    int bytesRead = super.read(b, off, len);
+                    if (bytesRead > 0) {
+                        totalRead += bytesRead;
+                        if (totalRead > MAX_IMAGE_SIZE) {
+                            throw new IOException("Image exceeds maximum allowed size.");
+                        }
+                    }
+                    return bytesRead;
+                }
+            };
+
+            BufferedImage img = ImageIO.read(limitedStream);
             if (img == null) {
-                throw new IOException("Invalid image: The content at the URL is not a supported image format.");
+                throw new IOException("Invalid image format.");
             }
+
             return img;
         }
+    }
+
+    private boolean isPrivateAddress(InetAddress address) {
+        return address.isAnyLocalAddress()
+                || address.isLoopbackAddress()
+                || address.isLinkLocalAddress()
+                || address.isSiteLocalAddress()
+                || address.isMulticastAddress();
     }
 
     private BufferedImage resizeImage(BufferedImage original, int targetW, int targetH) {
